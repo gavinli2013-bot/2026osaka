@@ -1,0 +1,416 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Calendar, MapPin, Sun, Languages, Navigation, 
+  Camera, Utensils, ShoppingBag, Hotel, Car, 
+  Thermometer, Wind, CloudSnow, Heart, 
+  Coffee, Flame, Info, Wallet, PieChart, 
+  RefreshCw, Volume2, Search, Map as MapIcon,
+  ChevronDown
+} from 'lucide-react';
+
+// 模擬宮崎駿風格的角色 SVG
+const TotoroIcon = () => (
+  <svg viewBox="0 0 100 100" className="w-16 h-16 opacity-80">
+    <circle cx="50" cy="60" r="35" fill="#A5C9CA" />
+    <circle cx="50" cy="55" r="28" fill="white" />
+    <ellipse cx="35" cy="40" rx="5" ry="8" fill="#395B64" />
+    <ellipse cx="65" cy="40" rx="5" ry="8" fill="#395B64" />
+    <path d="M40 70 Q50 80 60 70" stroke="#395B64" fill="none" strokeWidth="2" />
+  </svg>
+);
+
+const App = () => {
+  const [activeTab, setActiveTab] = useState('itinerary');
+  const [activeDay, setActiveDay] = useState(0);
+  const [exchangeRate, setExchangeRate] = useState(0.052); // 預設匯率
+  const [expenses, setExpenses] = useState([]);
+  const [expenseInput, setExpenseInput] = useState({ amount: '', category: '吃', note: '' });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'osaka-marathon-2026';
+  const apiKey = ""; 
+
+  // 行程資料
+  const itineraryData = [
+    {
+      date: '2026/02/20 (五)',
+      location: '大阪市中心',
+      hotel: 'Hotel Mystays Otemae',
+      weather: { temp: '4°C', desc: '晴時多雲', snow: '5%', wear: '發熱衣 + 羊毛衫 + 防風厚外套' },
+      events: [
+        { time: '04:10', type: 'transport', title: '香港飛大阪 (HKG → KIX)', desc: '預計 08:35 到達。', tags: ['20kg行李'], lat: 34.432, lng: 135.230 },
+        { time: '12:00', type: 'food', title: '黑門市場早餐', desc: '海鮮早餐墊墊胃。', tags: ['必吃: 烤扇貝'], lat: 34.665, lng: 135.505 },
+        { time: '18:30', type: 'food', title: '浜燒酒場 磯之香', desc: '海鮮磯燒。', tags: ['必吃: 磯燒盛合'], lat: 34.669, lng: 135.501 }
+      ]
+    },
+    {
+      date: '2026/02/21 (六)',
+      location: 'INTEX 大阪 / 賽前報到',
+      hotel: 'Hotel Mystays Otemae',
+      weather: { temp: '3°C', desc: '寒冷', snow: '10%', wear: '羽絨衣 + 手套 + 毛帽' },
+      events: [
+        { time: '11:00', type: 'food', title: 'Diorama Restaurant', desc: '鐵道模型貓咪餐廳。', tags: ['必玩: 看貓咪'], lat: 34.647, lng: 135.523 },
+        { time: '14:00', type: 'activity', title: 'INTEX 大阪 EXPO', desc: '領取號碼布。', tags: ['必買: 紀念衣'], lat: 34.636, lng: 135.420 }
+      ]
+    },
+    {
+        date: '2026/02/22 (日)',
+        location: '大阪馬拉松日',
+        hotel: 'Hotel Mystays Otemae',
+        weather: { temp: '2°C', desc: '晴', snow: '0%', wear: '跑衣 + 拋棄式雨衣' },
+        events: [
+          { time: '09:15', type: 'activity', title: '大阪馬拉松 START!', desc: '42.195K 挑戰。', tags: ['挑戰'], lat: 34.686, lng: 135.520 },
+          { time: '16:00', type: 'activity', title: 'Spa World', desc: '完賽放鬆。', tags: ['必泡'], lat: 34.650, lng: 135.505 }
+        ]
+      }
+  ];
+
+  // 實時獲取匯率 (模擬 API)
+  const fetchRate = async () => {
+    setIsRefreshing(true);
+    // 實際開發可替換為: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}
+    setTimeout(() => {
+      setExchangeRate(0.051 + Math.random() * 0.002);
+      setIsRefreshing(false);
+    }, 1000);
+  };
+
+  // 記帳計算
+  const categorySummary = useMemo(() => {
+    const summary = { '吃': 0, '買': 0, '交通': 0, '其他': 0 };
+    expenses.forEach(e => {
+      if (summary[e.category] !== undefined) summary[e.category] += parseFloat(e.amount);
+    });
+    return summary;
+  }, [expenses]);
+
+  const totalSpent = useMemo(() => Object.values(categorySummary).reduce((a, b) => a + b, 0), [categorySummary]);
+
+  // 語音播放
+  const playVoice = (text) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ja-JP';
+    window.speechSynthesis.speak(utterance);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#E7F6F2] pb-24 font-['Zen_Maru_Gothic',sans-serif] text-slate-700">
+      
+      {/* Header - 富士山藍背景 */}
+      <header className="sticky top-0 z-10 bg-[#395B64] p-6 rounded-b-[40px] shadow-lg text-white overflow-hidden">
+        <div className="absolute -right-4 -top-4 opacity-20">
+            <TotoroIcon />
+        </div>
+        <div className="relative z-10">
+          <h1 className="text-2xl font-black tracking-tight">OSAKA 2026 🏃‍♂️</h1>
+          <p className="text-xs opacity-80 font-medium">大阪馬拉松 x 和歌山溫泉之旅</p>
+        </div>
+      </header>
+
+      <main className="px-4 py-6">
+        
+        {/* 行程 Tab */}
+        {activeTab === 'itinerary' && (
+          <div className="space-y-6">
+            <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
+              {itineraryData.map((day, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveDay(idx)}
+                  className={`flex-shrink-0 px-6 py-2 rounded-full text-sm font-bold transition-all ${
+                    activeDay === idx ? 'bg-[#A5C9CA] text-[#395B64] shadow-md scale-105' : 'bg-white text-slate-400'
+                  }`}
+                >
+                  Day {idx + 1}
+                </button>
+              ))}
+            </div>
+
+            {/* 實時天氣預報卡片 */}
+            <div className="bg-[#395B64] text-white rounded-[32px] p-5 shadow-xl relative">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Sun className="text-yellow-300 animate-pulse" />
+                    <span className="text-xl font-black">{itineraryData[activeDay].weather.temp}</span>
+                  </div>
+                  <p className="text-xs opacity-80 mt-1">{itineraryData[activeDay].location} · 實時預報</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold bg-white/20 px-2 py-1 rounded-lg inline-block">建議穿著</p>
+                  <p className="text-[10px] mt-1 italic">{itineraryData[activeDay].weather.wear}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {itineraryData[activeDay].events.map((event, eIdx) => (
+                <div key={eIdx} className="bg-white rounded-[28px] p-5 shadow-sm border-b-4 border-[#A5C9CA] relative">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-black text-[#395B64]">{event.time}</span>
+                    <div className="flex space-x-1">
+                      {event.tags?.map((tag, tIdx) => (
+                        <span key={tIdx} className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFC0CB]/30 text-[#d63384] font-bold">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex space-x-3">
+                    <div className="bg-[#E7F6F2] p-3 rounded-2xl h-fit">
+                        {event.type === 'food' ? <Utensils className="text-[#395B64]"/> : <MapPin className="text-[#395B64]"/>}
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-slate-800">{event.title}</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{event.desc}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 記帳 Tab */}
+        {activeTab === 'budget' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-[32px] p-6 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="font-black text-lg text-[#395B64]">最新匯率</h2>
+                    <button onClick={fetchRate} className={`p-2 bg-[#E7F6F2] rounded-full ${isRefreshing ? 'animate-spin' : ''}`}>
+                        <RefreshCw size={16} className="text-[#395B64]" />
+                    </button>
+                </div>
+                <div className="flex justify-around items-center bg-[#F0F4F8] p-4 rounded-2xl">
+                    <div className="text-center">
+                        <p className="text-[10px] text-slate-400 font-bold">1 JPY</p>
+                        <p className="text-xl font-black text-[#395B64]">¥1</p>
+                    </div>
+                    <ChevronDown className="-rotate-90 text-slate-300" />
+                    <div className="text-center">
+                        <p className="text-[10px] text-slate-400 font-bold">HKD</p>
+                        <p className="text-xl font-black text-[#FFC0CB]">${exchangeRate.toFixed(4)}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* 輸入支出 */}
+            <div className="bg-white rounded-[32px] p-6 shadow-sm">
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <input 
+                        type="number" 
+                        placeholder="日圓金額 ¥" 
+                        className="bg-[#F8FAFC] p-3 rounded-2xl text-sm outline-none border border-slate-100"
+                        value={expenseInput.amount}
+                        onChange={e => setExpenseInput({...expenseInput, amount: e.target.value})}
+                    />
+                    <select 
+                        className="bg-[#F8FAFC] p-3 rounded-2xl text-sm outline-none border border-slate-100"
+                        value={expenseInput.category}
+                        onChange={e => setExpenseInput({...expenseInput, category: e.target.value})}
+                    >
+                        {['吃', '買', '交通', '其他'].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                </div>
+                <button 
+                    onClick={() => {
+                        if(!expenseInput.amount) return;
+                        setExpenses([...expenses, {...expenseInput, id: Date.now()}]);
+                        setExpenseInput({ amount: '', category: '吃', note: '' });
+                    }}
+                    className="w-full py-3 bg-[#395B64] text-white rounded-2xl font-bold"
+                >新增支出</button>
+            </div>
+
+            {/* 圓形統計圖模擬 */}
+            {expenses.length > 0 && (
+                <div className="bg-white rounded-[32px] p-6 shadow-sm text-center">
+                    <h3 className="font-bold mb-4">支出佔比</h3>
+                    <div className="relative w-40 h-40 mx-auto mb-4 border-[12px] border-[#E7F6F2] rounded-full flex items-center justify-center">
+                        <div>
+                            <p className="text-[10px] text-slate-400">總計 (HKD)</p>
+                            <p className="text-xl font-black text-[#395B64]">${(totalSpent * exchangeRate).toFixed(1)}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(categorySummary).map(([cat, val]) => (
+                            <div key={cat} className="flex justify-between items-center bg-slate-50 p-2 rounded-xl">
+                                <span className="text-xs font-bold">{cat}</span>
+                                <span className="text-xs text-[#395B64]">¥{val}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+          </div>
+        )}
+
+        {/* 地圖 Tab */}
+        {activeTab === 'map' && (
+            <div className="space-y-6">
+                <div className="bg-white h-[400px] rounded-[40px] shadow-inner relative overflow-hidden border-4 border-white">
+                    {/* 這裡模擬地圖 UI */}
+                    <div className="absolute inset-0 bg-[#A5C9CA]/20 flex items-center justify-center">
+                        <div className="text-center">
+                            <MapIcon size={48} className="text-[#395B64] opacity-20 mx-auto" />
+                            <p className="text-xs text-slate-400 mt-2 font-bold">Google Maps 實時定位中</p>
+                        </div>
+                    </div>
+                    {/* 標記點 */}
+                    {itineraryData[activeDay].events.map((e, idx) => (
+                        <div 
+                            key={idx} 
+                            style={{ top: `${20 + idx * 25}%`, left: `${30 + idx * 15}%` }}
+                            className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                        >
+                            <div className="bg-[#FFC0CB] p-1 rounded-full shadow-lg border-2 border-white animate-bounce">
+                                <MapPin size={14} className="text-white" />
+                            </div>
+                            <div className="bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-[10px] font-bold shadow-sm mt-1">
+                                {e.title}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="bg-[#395B64] p-5 rounded-[32px] text-white">
+                    <h3 className="font-bold mb-3 flex items-center space-x-2">
+                        <Heart className="w-4 h-4 text-[#FFC0CB] fill-[#FFC0CB]" />
+                        <span>已標記地點 ({itineraryData[activeDay].events.length})</span>
+                    </h3>
+                    <div className="space-y-2">
+                        {itineraryData[activeDay].events.map((e, i) => (
+                            <div key={i} className="flex justify-between items-center bg-white/10 p-2 rounded-xl">
+                                <span className="text-xs">{e.title}</span>
+                                <button className="text-[10px] bg-white text-[#395B64] px-2 py-1 rounded-lg font-bold">導航</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* 翻譯 Tab */}
+        {activeTab === 'translate' && (
+          <div className="space-y-6">
+            <div className="bg-[#395B64] p-6 rounded-[32px] shadow-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-white">智慧翻譯</h2>
+                <div className="flex space-x-2">
+                    <button className="p-2 bg-white/20 rounded-full text-white">
+                        <RefreshCw size={18} />
+                    </button>
+                    <button 
+                        onClick={() => window.open('https://lens.google/', '_blank')}
+                        className="flex items-center space-x-1 bg-[#FFC0CB] text-white px-4 py-2 rounded-full font-bold text-xs"
+                    >
+                        <Camera size={14} />
+                        <span>拍照翻譯</span>
+                    </button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {translations.map((item, idx) => (
+                  <div key={idx} className="bg-white rounded-2xl p-4 shadow-sm group">
+                    <div className="flex justify-between items-start">
+                        <p className="text-[10px] text-[#A5C9CA] font-black uppercase mb-1">日常用語</p>
+                        <button onClick={() => playVoice(item.jp)} className="text-[#395B64] hover:scale-110 transition-transform">
+                            <Volume2 size={18} />
+                        </button>
+                    </div>
+                    <p className="text-sm font-bold text-slate-500">{item.zh}</p>
+                    <p className="text-lg font-black text-[#395B64] mt-1">{item.jp}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="bg-white p-6 rounded-[32px] text-center">
+                <p className="text-xs text-slate-400 mb-4 font-medium">需要更多翻譯？</p>
+                <button 
+                    onClick={() => window.open('https://translate.google.com/', '_blank')}
+                    className="w-full py-4 bg-[#A5C9CA] text-[#395B64] rounded-2xl font-black shadow-lg"
+                >
+                    進入 GOOGLE 翻譯
+                </button>
+            </div>
+          </div>
+        )}
+
+        {/* 天氣分頁重製 */}
+        {activeTab === 'weather' && (
+            <div className="space-y-6">
+                <div className="bg-gradient-to-b from-[#395B64] to-[#A5C9CA] p-8 rounded-[40px] text-white text-center relative overflow-hidden">
+                    <div className="absolute left-4 bottom-4 opacity-30">
+                        <TotoroIcon />
+                    </div>
+                    <p className="text-sm font-bold opacity-80 uppercase tracking-widest">Osaka Today</p>
+                    <h2 className="text-6xl font-black my-4">3°C</h2>
+                    <p className="text-lg font-bold flex items-center justify-center space-x-2">
+                        <CloudSnow /> <span>可能降雪 (20%)</span>
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white p-5 rounded-[32px] shadow-sm">
+                        <Wind className="text-[#A5C9CA] mb-2" />
+                        <p className="text-[10px] text-slate-400 font-bold">體感溫度</p>
+                        <p className="font-black text-[#395B64]">-1°C</p>
+                    </div>
+                    <div className="bg-white p-5 rounded-[32px] shadow-sm">
+                        <Thermometer className="text-[#FFC0CB] mb-2" />
+                        <p className="text-[10px] text-slate-400 font-bold">積雪深度</p>
+                        <p className="font-black text-[#395B64]">2 cm</p>
+                    </div>
+                </div>
+
+                <h3 className="font-black text-[#395B64] px-2">未來五日預測</h3>
+                <div className="space-y-3">
+                    {itineraryData.map((d, i) => (
+                        <div key={i} className="bg-white/50 backdrop-blur p-4 rounded-2xl flex justify-between items-center border border-white">
+                            <span className="text-xs font-bold text-slate-400 w-12">Day {i+1}</span>
+                            <div className="flex items-center space-x-2">
+                                <Sun size={14} className="text-orange-300" />
+                                <span className="text-sm font-black">{d.weather.temp}</span>
+                            </div>
+                            <span className="text-[10px] bg-[#395B64] text-white px-2 py-1 rounded-lg">發熱衣必備</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+      </main>
+
+      {/* Floating Bottom Nav - 增加更多分頁 */}
+      <nav className="fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-2xl border border-white/50 p-2 rounded-[32px] shadow-2xl z-50">
+        <div className="flex justify-between items-center px-2">
+            <button onClick={() => setActiveTab('itinerary')} className={`p-3 rounded-2xl transition-all ${activeTab === 'itinerary' ? 'bg-[#395B64] text-white shadow-lg' : 'text-slate-400'}`}>
+                <Calendar size={20} />
+            </button>
+            <button onClick={() => setActiveTab('map')} className={`p-3 rounded-2xl transition-all ${activeTab === 'map' ? 'bg-[#395B64] text-white shadow-lg' : 'text-slate-400'}`}>
+                <MapIcon size={20} />
+            </button>
+            <button onClick={() => setActiveTab('budget')} className={`p-3 rounded-2xl transition-all ${activeTab === 'budget' ? 'bg-[#395B64] text-white shadow-lg' : 'text-slate-400'}`}>
+                <Wallet size={20} />
+            </button>
+            <button onClick={() => setActiveTab('weather')} className={`p-3 rounded-2xl transition-all ${activeTab === 'weather' ? 'bg-[#395B64] text-white shadow-lg' : 'text-slate-400'}`}>
+                <Sun size={20} />
+            </button>
+            <button onClick={() => setActiveTab('translate')} className={`p-3 rounded-2xl transition-all ${activeTab === 'translate' ? 'bg-[#395B64] text-white shadow-lg' : 'text-slate-400'}`}>
+                <Languages size={20} />
+            </button>
+        </div>
+      </nav>
+
+      {/* Font Injection */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700;900&display=swap');
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        body { background-color: #E7F6F2; }
+      `}} />
+    </div>
+  );
+};
+
+export default App;
